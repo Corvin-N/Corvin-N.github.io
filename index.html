@@ -12,6 +12,7 @@
   <!-- MOVE TO CSS -->
   <style>
   html, body {
+    width: 100%;
     height: 100%;
     margin: 0;
   }
@@ -19,12 +20,68 @@
   body {
     background: black;
     display: flex;
-    align-items: center;
+    flex-direction: row;
+  }
+
+  #content {
+    flex: 1.5 1.5 auto;
+    display: flex;
     justify-content: center;
   }
 
-  /* Mirror videoStream */
-  #videoStream {
+  #displayWrapper {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  #display {
+      display: flex;
+      flex-direction: row;
+  }
+
+  /* DISPLAYS */
+  #leftDisplay {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: row;
+  }
+
+  #middleDisplay {
+    flex: 5 5 auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #rightDisplay {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: row;
+  }
+  /* ------- */
+
+  #leftIntensity {
+    width: 100%;
+    height: 0%;
+    align-self: flex-end;
+  }
+
+  #rightIntensity {
+    width: 100%;
+    height: 0%;
+    align-self: flex-end;
+  }
+
+
+  @media (max-width: 1000px) {
+    body {
+      flex-direction: column;
+    }
+  }
+
+  /* Mirror videoCanvas */
+  #video {
     transform: rotateY(180deg);
     -webkit-transform:rotateY(180deg); /* Safari and Chrome */
     -moz-transform:rotateY(180deg); /* Firefox */
@@ -34,29 +91,79 @@
 
 </head>
 <body>
+  <video id="camera" width="640" height="480" style="display:none;" autoplay></video>
 
-  <canvas width="585" height="750" id="game"></canvas>
-  <video id="video" width="640" height="480" style="display:none;" autoplay></video>
-  <canvas id="videoStream" width="640" height="480"></canvas>
+  <div id="content">
+    <canvas id="game"width="234" height="300"></canvas> <!-- width="585" height="750"></canvas> -->
+  </div>
+  <div id="displayWrapper">
+    <div id="display">
+      <div id="leftDisplay" style="background-color: rgb(80, 0, 67)">
+        <div id="leftIntensity" style="background-color: red"></div>
+      </div>
+      <div id="middleDisplay" style="background-color: rgb(237, 192, 255)">
+        <canvas id="video"></canvas> <!-- width="640" height="480"></canvas> -->
+      </div>
+      <div id="rightDisplay" style="background-color: rgb(80, 0, 67)">
+        <div id="rightIntensity" style="background-color: red"></div>
+      </div>
+    </div>
+  </div>
+  
+  
+
 
   <!-- MOVE TO JS ------------------------------------------------------------------------------>
   <script>
-    //---PONG GAME-----------------------------------------------------------------------
-    const canvas = document.getElementById('game');
-    const context = canvas.getContext('2d');
-    const grid = 15;
-    const paddleWidth = grid * 5; // 80
-    const maxPaddleX = canvas.width - grid - paddleWidth;
+    const content = document.getElementById('content');
+    const middleDisplay = document.getElementById('middleDisplay');
 
-    var paddleSpeed = 7;
-    var ballSpeed = 5;
+    const gameCanvas = document.getElementById('game');
+    const gameContext = gameCanvas.getContext('2d');
+
+    const camera = document.getElementById('camera');
+
+    const videoCanvas = document.getElementById('video');
+    const videoContext = videoCanvas.getContext('2d');
+
+    const leftIntensity = document.getElementById('leftIntensity');
+    const rightIntensity = document.getElementById('rightIntensity');
+
+    /*
+    //scale according to original proportion
+    const originalGameWidth = 585;
+    const originalGameHeight = 750;
+    const scaleFactorGame = Math.min(content.offsetWidth / originalGameWidth, content.offsetHeight / originalGameHeight);
+    gameCanvas.width = originalGameWidth * scaleFactorGame;
+    gameCanvas.height = originalGameHeight * scaleFactorGame;
+    */
+
+
+    camera.addEventListener("loadedmetadata", () => {
+      const scaleFactorDisplay = Math.min(middleDisplay.offsetWidth / camera.videoWidth, middleDisplay.offsetHeight / camera.videoHeight);
+
+      videoCanvas.width = camera.videoWidth * scaleFactorDisplay;
+      videoCanvas.height = camera.videoHeight * scaleFactorDisplay;
+    });
+
+    //---PONG GAME-----------------------------------------------------------------------
+    //absolute
+    const grid = 6;
+    var textSize = 4; //textSize relative to gridSize
+
+    //relative
+    const paddleWidth = grid * 5;
+    const maxPaddleX = gameCanvas.width - grid - paddleWidth;
+
+    var paddleSpeed = 2 * grid / 5;
+    var ballSpeed = grid / 3;
 
     var topScore = 0;
     var bottomScore = 0;
 
     const topPaddle = {
       // start in the middle of the game on the left side
-      x: canvas.width / 2 - paddleWidth / 2,
+      x: gameCanvas.width / 2 - paddleWidth / 2,
       y: grid * 2,
       width: paddleWidth,
       height: grid,
@@ -66,8 +173,8 @@
     };
     const bottomPaddle = {
       // start in the middle of the game on the right side
-      x: canvas.width / 2 - paddleWidth / 2,
-      y: canvas.height - grid * 3,
+      x: gameCanvas.width / 2 - paddleWidth / 2,
+      y: gameCanvas.height - grid * 3,
       width: paddleWidth,
       height: grid,
 
@@ -76,8 +183,8 @@
     };
     const ball = {
       // start in the middle of the game
-      x: canvas.width / 2 - grid / 2,
-      y: canvas.height / 2 - grid / 2,
+      x: gameCanvas.width / 2 - grid / 2,
+      y: gameCanvas.height / 2 - grid / 2,
       width: grid,
       height: grid,
 
@@ -108,7 +215,7 @@
     // game loop
     function loop() {
       requestAnimationFrame(loop);
-      context.clearRect(0,0,canvas.width,canvas.height);
+      gameContext.clearRect(0,0,gameCanvas.width,gameCanvas.height);
 
       // move paddles by their velocity
       //TODO: deleteme
@@ -132,9 +239,9 @@
       }
 
       // draw paddles
-      context.fillStyle = 'white';
-      context.fillRect(topPaddle.x, topPaddle.y, topPaddle.width, topPaddle.height);
-      context.fillRect(bottomPaddle.x, bottomPaddle.y, bottomPaddle.width, bottomPaddle.height);
+      gameContext.fillStyle = 'white';
+      gameContext.fillRect(topPaddle.x, topPaddle.y, topPaddle.width, topPaddle.height);
+      gameContext.fillRect(bottomPaddle.x, bottomPaddle.y, bottomPaddle.width, bottomPaddle.height);
 
       // move ball by its velocity
       ball.x += ball.dx;
@@ -145,13 +252,13 @@
         ball.x = grid;
         ball.dx *= -1;
       }
-      else if (ball.x + ball.width > canvas.width - grid) {
-        ball.x = canvas.width - grid - ball.width;
+      else if (ball.x + ball.width > gameCanvas.width - grid) {
+        ball.x = gameCanvas.width - grid - ball.width;
         ball.dx *= -1;
       }
 
       // reset ball if it goes past paddle (but only if we haven't already done so)
-      if ( (ball.y < 0 || ball.y > canvas.height) && !ball.resetting) {
+      if ( (ball.y < 0 || ball.y > gameCanvas.height) && !ball.resetting) {
         ball.resetting = true;
         if (ball.y < 0) {
           bottomScore++;
@@ -162,8 +269,8 @@
         // give some time for the player to recover before launching the ball again
         setTimeout(() => {
           ball.resetting = false;
-          ball.x = canvas.width / 2 - ball.width / 2;
-          ball.y = canvas.height / 2 - ball.width / 2;
+          ball.x = gameCanvas.width / 2 - ball.width / 2;
+          ball.y = gameCanvas.height / 2 - ball.width / 2;
           ball.dx = 0;
         }, 1000);
       }
@@ -187,26 +294,26 @@
       }
 
       // draw ball
-      context.fillRect(ball.x, ball.y, ball.width, ball.height);
+      gameContext.fillRect(ball.x, ball.y, ball.width, ball.height);
 
       // draw walls
-      context.fillStyle = 'lightgrey';
-      context.fillRect(0, 0, grid, canvas.height);
-      context.fillRect(canvas.width - grid, 0, grid, canvas.height);
+      gameContext.fillStyle = 'lightgrey';
+      gameContext.fillRect(0, 0, grid, gameCanvas.height);
+      gameContext.fillRect(gameCanvas.width - grid, 0, grid, gameCanvas.height);
 
-/*
       // draw dotted line down the middle
-      for (let i = grid; i < canvas.height - grid; i += grid * 2) {
-        context.fillRect(canvas.width / 2 - grid / 2, i, grid, grid);
+      for (let i = grid; i < gameCanvas.width - grid; i += grid * 2) {
+        gameContext.fillRect(i, gameCanvas.height / 2 - grid / 2, grid, grid);// canvas.width / 2 - grid / 2, i, grid, grid);
       }
-*/
-      context.fillStyle = 'yellow';
-      context.font = "bold 48px serif";
-      context.fillText(topScore + ':' + bottomScore, 0, 50);
 
-      context.fillStyle = 'red';
-      context.font = "bold 48px serif";
-      context.fillText('>' + isDeviceMobile() + '<', 500, 50);
+      gameContext.fillStyle = 'yellow';
+      gameContext.font = "bold " + textSize * grid + "px serif";
+      gameContext.fillText(topScore, 2 * grid, gameCanvas.height / 2 - 2 * grid);
+      gameContext.fillText(bottomScore, 2 * grid, gameCanvas.height / 2 + (1 + textSize) * grid);
+
+      //gameContext.fillStyle = 'red';
+      //gameContext.font = "bold 48px serif";
+      //gameContext.fillText('>' + isDeviceMobile() + '<', 50, 100);
 
       processFrame();
     }
@@ -254,14 +361,11 @@
 
     //--POSE DETECTION-----------------------------------------------------------------------
     var counter = 0;
-    var recalculateEveryXFrames = isDeviceMobile() ? 6 : 2;
+    var recalculateEveryXFrames = isDeviceMobile() ? 8 : 3;
     var poses;
     var rightColor;
     var leftColor;
-
-    const video = document.getElementById('video');
-    const str = document.getElementById('videoStream');
-    const ctx = str.getContext('2d');
+    var createDetectorCalled = false;
 
     function isDeviceMobile() {
       let check = false;
@@ -271,16 +375,16 @@
 
     navigator.mediaDevices.getUserMedia({ video: {width: {ideal: 640}, height: {ideal: 480}} })
     .then((stream) => {
-      video.srcObject = stream;
+      camera.srcObject = stream;
     })
     .catch((error) => {
       console.error('Error accessing the camera:', error);
     });
 
     function processFrame() {
-      ctx.drawImage(video, 0, 0, str.width, str.height);
+      videoContext.drawImage(camera, 0, 0, videoCanvas.width, videoCanvas.height);
       if (poses) {
-        drawPose(ctx, poses[0]);
+        drawPose(videoContext, poses[0]);
       }
 
       if (counter % recalculateEveryXFrames == 0) {
@@ -299,10 +403,11 @@
     var detector;
 
     async function calcPoseNet() {
-      if (!detector) {
+      if (!detector && !createDetectorCalled) {
         detector = await poseDetection.createDetector(poseDetection.SupportedModels.PoseNet, detectorConfig);
+        createDetectorCalled = true;
       }
-      detector.estimatePoses(str)
+      detector.estimatePoses(videoCanvas)
       .then((newPoses) => {
         poses = newPoses;
         calcNewMovement();
@@ -315,32 +420,46 @@
       const rightdiff = calcYDiff(keypoints, 'right_elbow', 'right_wrist');
       const maxdiff = calcMaxSize(keypoints);
 
+      const leftPercentage = leftdiff / maxdiff;
+      const rightPercentage = rightdiff / maxdiff;
+
+      const chosenColor = "green";
+      const activeColor = "lightgreen";
+      const deactiveColor = "blue";
+
       if (leftdiff > 0 && leftdiff >= rightdiff) {
           //input left
           //down arrow key
-          bottomPaddle.dx = -paddleSpeed * (leftdiff / maxdiff);
-          leftColor = 'green';
+          bottomPaddle.dx = -paddleSpeed * leftPercentage;
+          leftColor = chosenColor;
           if (rightdiff > 0) {
-            rightColor = 'green';
+            rightColor = activeColor;
           } else {
-            rightColor = 'blue';
+            rightColor = deactiveColor;
           }
         } else if (rightdiff > 0 && rightdiff > leftdiff) {
           //input right
           //up arrow key
-          bottomPaddle.dx = paddleSpeed * (rightdiff / maxdiff);
-          rightColor = 'green';
+          bottomPaddle.dx = paddleSpeed * rightPercentage;
+          rightColor = chosenColor;
           if (leftdiff > 0) {
-            leftColor = 'green';
+            leftColor = activeColor;
           } else {
-            leftColor = 'blue';
+            leftColor = deactiveColor;
           }
         } else {
           //clear input
           bottomPaddle.dx = 0;
-          rightColor = 'blue';
-          leftColor = 'blue';
+          rightColor = deactiveColor;
+          leftColor = deactiveColor;
         }
+
+        const clamp = (num, min, max) => Math.min(Math.max(num, min), max);
+
+        leftIntensity.style.height = clamp(leftPercentage, 0, 1) * 100 + "%";
+        leftIntensity.style.backgroundColor = leftColor;
+        rightIntensity.style.height = clamp(rightPercentage, 0, 1) * 100 + "%";
+        rightIntensity.style.backgroundColor = rightColor;
     }
 
     function findKeypoint(keypoints, name) {
