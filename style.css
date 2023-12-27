@@ -10,25 +10,28 @@ body {
   flex-direction: row;
 }
 
+/* CONTENT */
+
 #content {
-  flex: 1.5 1.5 auto;
+  flex: 1 1 auto;
   display: flex;
   justify-content: center;
 }
 
+/* game canvas with game */
+#game {
+  object-fit: contain;
+}
+
+/* ------------------- DISPLAYS -------------------- */
 #displayWrapper {
   flex: 1 1 auto;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   justify-content: center;
 }
 
-#display {
-    display: flex;
-    flex-direction: row;
-}
-
-/* DISPLAYS */
+/* display wrapper for left intensity, video and right intensity */
 #leftDisplay {
   flex: 1 1 auto;
   display: flex;
@@ -46,22 +49,30 @@ body {
   display: flex;
   flex-direction: row;
 }
-/* ------- */
 
+/* displays how strong input to move left is */
 #leftIntensity {
   width: 100%;
   height: 0%;
   align-self: flex-end;
 }
 
+/* video stream of camera */
+#video {
+  width: auto;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* displays how strong input to move right is */
 #rightIntensity {
   width: 100%;
   height: 0%;
   align-self: flex-end;
 }
 
-
-@media (max-width: 1000px) {
+/* order game and camera below each other on mobile devices */
+@media (max-width: 980px) {
   body {
     flex-direction: column;
   }

@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html>
-<>
   <title>MotionPong</title>
   <meta charset="UTF-8">
 
@@ -8,27 +7,27 @@
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
   <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+
+  <script src="posenet.js" async></script>
   <script src="pong.js" async></script>
   <link id="css" rel="stylesheet" type="text/css" href="style.css">
 
 </head>
 <body>
-  <video id="camera" width="640" height="480" style="display:none;" autoplay></video>
+  <video id="camera" width="160" height="120" style="display:none;" autoplay></video>
 
   <div id="content">
-    <canvas id="game"width="234" height="300"></canvas> <!-- width="585" height="750"></canvas> -->
+    <canvas id="game" width="234" height="300"></canvas>
   </div>
   <div id="displayWrapper">
-    <div id="display">
-      <div id="leftDisplay" style="background-color: rgb(80, 0, 67)">
-        <div id="leftIntensity" style="background-color: red"></div>
-      </div>
-      <div id="middleDisplay" style="background-color: rgb(237, 192, 255)">
-        <canvas id="video"></canvas> <!-- width="640" height="480"></canvas> -->
-      </div>
-      <div id="rightDisplay" style="background-color: rgb(80, 0, 67)">
-        <div id="rightIntensity" style="background-color: red"></div>
-      </div>
+    <div id="leftDisplay" style="background-color: rgb(80, 0, 67)">
+      <div id="leftIntensity" style="background-color: red"></div>
+    </div>
+    <div id="middleDisplay">
+      <canvas id="video"></canvas>
+    </div>
+    <div id="rightDisplay" style="background-color: rgb(80, 0, 67)">
+      <div id="rightIntensity" style="background-color: red"></div>
     </div>
   </div>
 
