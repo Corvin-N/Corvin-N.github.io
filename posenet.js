@@ -1,73 +1,45 @@
 //"video" is a canvas on which the camera stream is painted every frame
 const videoCanvas = document.getElementById("video");
 const videoContext = videoCanvas.getContext("2d");
+//switch calcMovement handler by clicking on the videoCanvas
+videoCanvas.addEventListener('click', switchCalcMovement, false);
+
+const middleDisplay = document.getElementById("middleDisplay");
 
 //"camera" contains video stream of camera
 const camera = document.getElementById("camera");
-camera.addEventListener("loadedmetadata", () => {
-    //calculate scale factor such that camera stream fits on screen. website needs to be reloaded to resize camera properly
-    const scaleFactorDisplay = Math.min(
-        middleDisplay.offsetWidth / camera.videoWidth,
-        middleDisplay.offsetHeight / camera.videoHeight
-    );
+//rescale camera when loaded
+camera.addEventListener("loadedmetadata", cameraLoadedEvent, false);
+// Streaming users camera to camera object
+navigator.mediaDevices
+    .getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } })
+    .then((stream) => {
+        camera.srcObject = stream;
+    })
+    .catch((error) => {
+        console.error("Error accessing the camera:", error);
+    });
 
-    videoCanvas.width = camera.videoWidth * scaleFactorDisplay;
-    videoCanvas.height = camera.videoHeight * scaleFactorDisplay;
-});
-
-const middleDisplay = document.getElementById("middleDisplay");
 
 //"leftIntensity" and "rightIntensity" are used to display the input of the player
 const leftIntensity = document.getElementById("leftIntensity");
 const rightIntensity = document.getElementById("rightIntensity");
 
 
+/**
+ * Handle camera loaded event and rescale camera according to provided size
+ */
+function cameraLoadedEvent() {
+    //calculate scale factor such that camera stream fits on screen. website needs to be reloaded to resize camera properly
+    const scaleFactorDisplay = Math.min(
+        middleDisplay.offsetWidth / camera.videoWidth,
+        middleDisplay.offsetHeight / camera.videoHeight
+    );
 
-//-------------------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------- KEYPOINTS GENERATING ----------------------------------------------------------
-//-------------------------------------------------------------------------------------------------------------------------------
-
-//add all possible calcMovements-handler functions to the following array
-const calcMovements = [followHead, steeringWheel, triggerOnRaiseArm];
-var currentMovement = 0;
-var calcMovement = calcMovements[currentMovement];
-
-//switch calcMovement handler by clicking on the videoCanvas
-videoCanvas.addEventListener('click', switchCalcMovement, false);
-
-//frame counter
-var counter = 0;
-const recalculateEveryXFrames = isDeviceMobile() ? 8 : 3;
-
-//current detected poses by PoseNet
-// Note: poses need to be saved so that they can be accessed during drawing
-var poses;
-
-//color for movement direction
-const chosenColor = "green";
-//color for active, but not movement direction
-const activeColor = "lightgreen";
-//color for deactive direction
-const deactiveColor = "blue";
-
-//colors of left and right intensity bar
-var rightColor;
-var leftColor;
-
-//only create detector once
-var createDetectorCalled = false;
-//config for setting up detector
-//for more information refer to https://github.com/tensorflow/tfjs-models/tree/master/pose-detection/src/posenet
-const detectorConfig = {
-    architecture: "MobileNetV1",
-    outputStride: 16,
-    //input resolution is shrinked to increase calculation speed
-    // but not shrinked so much that the results suffer
-    inputResolution: { width: 160, height: 120 },
-    multiplier: 0.75,
-};
-//detector used to detect pose from image
-var detector;
+    //apply scalefactor to canvas height and width
+    videoCanvas.width = camera.videoWidth * scaleFactorDisplay;
+    videoCanvas.height = camera.videoHeight * scaleFactorDisplay;
+}
 
 /**
  * function by http://detectmobilebrowsers.com/
@@ -89,17 +61,32 @@ function isDeviceMobile() {
     return check;
 }
 
-/**
- * Streaming users camera to camera object
- */
-navigator.mediaDevices
-    .getUserMedia({ video: { width: { ideal: 640 }, height: { ideal: 480 } } })
-    .then((stream) => {
-        camera.srcObject = stream;
-    })
-    .catch((error) => {
-        console.error("Error accessing the camera:", error);
-    });
+//-------------------------------------------------------------------------------------------------------------------------------
+//----------------------------------------------- POSENET ESTIMATION ------------------------------------------------------------
+//-------------------------------------------------------------------------------------------------------------------------------
+
+//count frames
+var counter = 0;
+const recalculateEveryXFrames = isDeviceMobile() ? 8 : 3;
+
+//current detected poses by PoseNet
+// Note: poses need to be saved so that they can be accessed during drawing
+var poses;
+
+//only create detector once
+var createDetectorCalled = false;
+//config for setting up detector
+//for more information refer to https://github.com/tensorflow/tfjs-models/tree/master/pose-detection/src/posenet
+const detectorConfig = {
+    architecture: "MobileNetV1",
+    outputStride: 16,
+    //input resolution is shrinked to increase calculation speed
+    // but not shrinked so much that the results suffer
+    inputResolution: { width: 160, height: 120 },
+    multiplier: 0.75,
+};
+//detector used to detect pose from image
+var detector;
 
 /**
  * Process a single frame from the camera object.
@@ -141,29 +128,55 @@ async function estimatePoses() {
 }
 
 //-------------------------------------------------------------------------------------------------------------------------------
-//----------------------------------------------- KEYPOINTS HANDLING ------------------------------------------------------------
+//----------------------------------------------- KEYPOINT HANDLING -------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
 
-// MOVEMENT CALCULATIONS
+//add all possible calcMovements-handler functions to the following array
+const calcMovements = [followHead, steeringWheel, triggerOnRaiseArm, keyInput];
+var currentMovement = 0;
+var calcMovement = calcMovements[currentMovement];
+
+const drawPoses = [drawPoseHighlightNose, drawPoseHighlightHandDiff, drawPoseHighlightArms, drawPose];
+var drawPose = drawPoses[currentMovement];
+
+//to remember if key-event listeners are currently added or not
+var eventListenersAdded = false;
 
 /**
  * Switch calcMovement variable to next function in calcMovements array. Restart when hitting the end
  */
 function switchCalcMovement() {
-    leftIntensity.style.height = 0 + "%";
-    leftIntensity.style.backgroundColor = deactiveColor;
-    rightIntensity.style.height = 0 + "%";
-    rightIntensity.style.backgroundColor = deactiveColor;
+    updateIntensityBars(0, deactiveColor, 0, deactiveColor);
+    if (eventListenersAdded) {
+        document.removeEventListener('keydown', handleKeyDown, true);
+        document.removeEventListener('keyup', handleKeyUp, true);
+        eventListenersAdded = false;
+    }
 
     currentMovement++;
     currentMovement = currentMovement % calcMovements.length;
     console.log(currentMovement);
 
     calcMovement = calcMovements[currentMovement];
+    drawPose = drawPoses[currentMovement];
 
-    alert("Movement is now calculated by the following method: " + calcMovement.name);
+    alert("Movement is now calculated by the following method: \n--> " + calcMovement.name + " <--");
 }
 
+// +++++++++++++++++++++++++++++++++++++++
+// ++++++ POSSIBLE MOVEMENT HANDLERS +++++
+// +++++++++++++++++++++++++++++++++++++++
+
+//color for movement direction
+const chosenColor = "green";
+//color for active, but not movement direction
+const activeColor = "lightgreen";
+//color for deactive direction
+const deactiveColor = "blue";
+
+//colors of left and right intensity bar
+var rightColor;
+var leftColor;
 
 /**
  * Function to calculate the movement instruction according to the current pose.
@@ -221,11 +234,7 @@ function steeringWheel() {
         rightPercentage = 0;
     }
 
-    //update intensity bars left and right to the camera
-    leftIntensity.style.height = leftPercentage * 100 + "%";
-    leftIntensity.style.backgroundColor = leftColor;
-    rightIntensity.style.height = rightPercentage * 100 + "%";
-    rightIntensity.style.backgroundColor = rightColor;
+    updateIntensityBars(leftPercentage, leftColor, rightPercentage, rightColor);
 }
 
 /**
@@ -271,14 +280,80 @@ function triggerOnRaiseArm() {
         leftColor = deactiveColor;
     }
 
-    //update intensity bars left and right to the camera
+    updateIntensityBars(leftPercentage, leftColor, rightPercentage, rightColor);
+}
+
+/**
+ * Function to calculate the movement instruction according to the current pose.
+ * Does not include pose but only listens to key events.
+ */
+function keyInput() {
+    if (!eventListenersAdded) {
+        document.addEventListener('keydown', handleKeyDown, true);
+        document.addEventListener('keyup', handleKeyUp, true);
+        eventListenersAdded = true;
+    }
+}
+
+// ---------------------------------------
+// ------ POSSIBLE MOVEMENT HANDLERS -----
+// ---------------------------------------
+
+/**
+ * Handle key down events and extract movements.
+ * @param {Event} event the keydown event
+ * @returns void
+ */
+function handleKeyDown(event) {
+    //skip events that are part of composition of multiple keys
+    if (event.isComposing || event.key === 'Dead') {
+        return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+        handleInput(-1);
+        updateIntensityBars(1, chosenColor, 0, deactiveColor);
+    }
+    else if (event.key === 'ArrowRight') {
+        handleInput(1);
+        updateIntensityBars(0, deactiveColor, 1, chosenColor);
+    }
+
+}
+
+/**
+ * Handle key up events and extract movement reset commands.
+ * @param {Event} event the keyup event
+ * @returns void
+ */
+function handleKeyUp(event) {
+    //skip events that are part of composition of multiple keys
+    if (event.isComposing || event.key === 'Dead') {
+        return;
+    }
+
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+        handleInput(0);
+        updateIntensityBars(0, deactiveColor, 0, deactiveColor);
+    }
+}
+
+/**
+ * Update intensity bars left and right of the camera.
+ * @param {number} leftPercentage height of left bar from interval, clamped to [0,1]
+ * @param {color} leftColor color of left bar
+ * @param {number} rightPercentage height of right bar from interval, clamped to [0,1]
+ * @param {color} rightColor color of right bar
+ */
+function updateIntensityBars(leftPercentage, leftColor, rightPercentage, rightColor) {
     leftIntensity.style.height = clamp(leftPercentage, 0, 1) * 100 + "%";
     leftIntensity.style.backgroundColor = leftColor;
     rightIntensity.style.height = clamp(rightPercentage, 0, 1) * 100 + "%";
     rightIntensity.style.backgroundColor = rightColor;
 }
 
-// MOVEMENT CALCULATIONS END
+
+// KEYPOINT CALCULATIONS 
 
 /**
  * Returns the first keypoint in keypoints that matches the given name
@@ -348,32 +423,77 @@ function calcMaxDistance(keypoints) {
 //----------------------------------------------- DRAWING POSE ------------------------------------------------------------------
 //-------------------------------------------------------------------------------------------------------------------------------
 
+// +++++++++++++++++++++++++++++++++++++++
+// ++++++++ POSSIBLE POSE DRAWERS ++++++++
+// +++++++++++++++++++++++++++++++++++++++
+
 /**
- * Draw an entire pose which was created by PoseNet on the given context
+ * Draw an entire pose which was created by PoseNet on the given context with highlighting both arms
  * @param {context} context the context on which is drawn
  * @param {pose} pose the pose that gets drawn
  */
-function drawPose(context, pose) {
+function drawPoseHighlightArms(context, pose) {
     const keypoints = pose.keypoints;
     // draw line between the two relevant keypoint-pairs
     drawLink(context, leftColor, keypoints, "left_elbow", "left_wrist");
     drawLink(context, rightColor, keypoints, "right_elbow", "right_wrist");
     // draw all available keypoints
-    keypoints.forEach((keypoint) => drawKeypoint(context, keypoint));
+    keypoints.forEach((keypoint) => drawKeypoint(context, keypoint, "red", 5));
 }
+
+/**
+ * Draw an entire pose which was created by PoseNet on the given context with highlighting the nose keypoint
+ * @param {context} context the context on which is drawn
+ * @param {pose} pose the pose that gets drawn
+ */
+function drawPoseHighlightNose(context, pose) {
+    const keypoints = pose.keypoints;
+    // draw all available keypoints
+    keypoints.forEach((keypoint) => drawKeypoint(context, keypoint, "red", 5));
+    // highlight nose keypoint
+    drawKeypoint(context, findKeypoint(keypoints, 'nose'), chosenColor, 8);
+}
+
+/**
+ * Draw an entire pose which was created by PoseNet on the given context with highlighting link between two hands
+ * @param {context} context the context on which is drawn
+ * @param {pose} pose the pose that gets drawn
+ */
+function drawPoseHighlightHandDiff(context, pose) {
+    const keypoints = pose.keypoints;
+    // draw line between the two relevant keypoint-pairs
+    drawLink(context, activeColor, keypoints, "left_wrist", "right_wrist");
+    // draw all available keypoints
+    keypoints.forEach((keypoint) => drawKeypoint(context, keypoint, "red", 5));
+}
+
+/**
+ * Draw an entire pose which was created by PoseNet on the given context without highlighting anything.
+ * @param {context} context the context on which is drawn
+ * @param {pose} pose the pose that gets drawn
+ */
+function drawPose(context, pose) {
+    const keypoints = pose.keypoints;
+    // draw all available keypoints
+    keypoints.forEach((keypoint) => drawKeypoint(context, keypoint, "red", 5));
+}
+
+// ---------------------------------------
+// -------- POSSIBLE POSE DRAWERS --------
+// ---------------------------------------
 
 /**
  * Draw a single keypoint which was created by PoseNet on the given context
  * @param {context} context the context on which is drawn
  * @param {keypoint} keypoint the keypoint that gets drawn
  */
-function drawKeypoint(context, keypoint) {
+function drawKeypoint(context, keypoint, color, size) {
     // Set the color and size for the keypoint
-    context.fillStyle = "red";
+    context.fillStyle = color;
     context.beginPath();
 
     // Draw a filled circle for the keypoint
-    context.arc(keypoint.x, keypoint.y, 5, 0, 2 * Math.PI);
+    context.arc(keypoint.x, keypoint.y, size, 0, 2 * Math.PI);
     context.fill();
 }
 
